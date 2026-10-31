@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>แผนแก้ท่าทางและเพิ่มความสูง</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <h1>แผนแก้ท่าทางและเพิ่มความสูง</h1>
+  <p class="sub" id="date"></p>
+
+  <div class="tape-wrap">
+    <div class="tape-head"><span>วันนี้ทำแล้ว</span><b id="count">0/0</b></div>
+    <div class="tape" role="progressbar" aria-label="ความคืบหน้าวันนี้" id="bar"><div class="tape-fill" id="fill"></div></div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" data-tab="today" aria-selected="true">วันนี้</button>
+    <button role="tab" data-tab="week" aria-selected="false">สัปดาห์</button>
+    <button role="tab" data-tab="track" aria-selected="false">ติดตามผล</button>
+  </div>
+
+  <section id="view"></section>
+</main>
+
+<script>
+(function(){
+  var mem = {};
+  var store = {
+    get: function(k){ try { var v = localStorage.getItem(k); return v === null ? (mem[k] || null) : v; } catch(e){ return mem[k] || null; } },
+    set: function(k,v){ mem[k] = v; try { localStorage.setItem(k,v); } catch(e){} }
+  };
+  function read(k, fb){ try { var v = store.get(k); return v ? JSON.parse(v) : fb; } catch(e){ return fb; } }
+  function write(k, v){ store.set(k, JSON.stringify(v)); }
+
+  var DAYS = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+  var WORKOUT = {
+    1:['สุริยนมัสการ 3–5 รอบ','วิ่ง 30 นาที, วิดพื้น 3×12, กระโดดเชือก 3×3 นาที','โหนบาร์ 3×30–45 วิ, wall stand 1 นาที'],
+    2:['สุริยนมัสการ 3–5 รอบ','เวท Full Body: DB squat 3×15, DB row 3×12','face pull หรือ band pull-apart 3×15, chin tuck ×10'],
+    3:['สุริยนมัสการ 3 รอบ','พักแบบแอคทีฟ: ยืดส่วนล่าง 15–20 นาที','โหนบาร์ 2×30 วิ, wall stand 1 นาที'],
+    4:['สุริยนมัสการ 3–5 รอบ','วิ่ง 30–40 นาที, วิดพื้น 4×12, กระโดดเชือก 4×3 นาที','โหนบาร์ 3×30–45 วิ'],
+    5:['สุริยนมัสการ 3–5 รอบ','เวทบน: DB shoulder press 3×12, jump squat 3×15','face pull, plank 3×30–45 วิ, chin tuck ×10'],
+    6:['สุริยนมัสการ 3–5 รอบ','วิ่ง interval 20 นาที, กระโดดเชือก 5×3 นาที','โหนบาร์ 3×45 วิ'],
+    0:['พัก ยืดเบาๆ ได้','พักเต็มที่: ยืดลึก 20 นาที','wall stand 1 นาที, chin tuck ×10']
+  };
+  var now = new Date();
+  function key(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+  var today = key(now), wd = now.getDay();
+  var w = WORKOUT[wd];
+
+  var GROUPS = [
+    ['ตื่นนอน', [
+      ['yoga','ช่วงเช้า: ' + w[0],'หลังตื่น 10–15 นาที ถ้าทำนอกบ้านหรือริมหน้าต่างที่แดดถึง จะได้แดดเช้าไปด้วย'],
+      ['calcium','มื้อเช้า: โปรตีน + แคลเซียม 1 เม็ด','ไข่ นม หรือโยเกิร์ต']
+    ]],
+    ['กลางวัน', [
+      ['d3k2','มื้อกลางวัน: โปรตีน + D3/K2','กินพร้อมมื้อที่มีไขมัน ห่างกาแฟและชา'],
+      ['hourly','ลุกยืดตัวทุกชั่วโมงที่นั่งเรียน','นั่งหลังตรง ไหล่ไม่ห่อ']
+    ]],
+    ['เย็น', [
+      ['train','ออกกำลังกาย: ' + w[1],'จบก่อนนอนอย่างน้อย 2 ชม.'],
+      ['posture','ท่าแก้ท่าทางเสริม',w[2] + ' (ประมาณ 10 นาที)'],
+      ['dinner','มื้อเย็น: โปรตีน + นมหรือโยเกิร์ต','']
+    ]],
+    ['ก่อนนอน', [
+      ['night','ยืดก่อนนอน','child’s pose และยืดขา (5 นาที)'],
+      ['screen','ปิดจอก่อนนอน 30 นาที',''],
+      ['sleep','เข้านอนเวลาเดิม','ให้ได้ 8–9 ชั่วโมง']
+    ]]
+  ];
+  var TOTAL = GROUPS.reduce(function(n,g){ return n + g[1].length; }, 0);
+  var IDS = [];
+  GROUPS.forEach(function(g){ g[1].forEach(function(it){ IDS.push(it[0]); }); });
+
+  var tab = 'today';
+  var done = read('done:' + today, {});
+
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  function progress(){
+    var n = IDS.filter(function(k){ return done[k]; }).length;
+    var pct = Math.round(n / TOTAL * 100);
+    document.getElementById('count').textContent = n + '/' + TOTAL;
+    document.getElementById('fill').style.width = pct + '%';
+    var bar = document.getElementById('bar');
+    bar.setAttribute('aria-valuenow', pct); bar.setAttribute('aria-valuemin', 0); bar.setAttribute('aria-valuemax', 100);
+  }
+
+  function viewToday(){
+    return GROUPS.map(function(g){
+      return '<h2>' + g[0] + '</h2><div class="list">' + g[1].map(function(it){
+        return '<label class="item"><input type="checkbox" data-id="' + it[0] + '"' + (done[it[0]] ? ' checked' : '') + '>' +
+          '<span>' + esc(it[1]) + (it[2] ? '<small>' + esc(it[2]) + '</small>' : '') + '</span></label>';
+      }).join('') + '</div>';
+    }).join('') + '<p class="note">เหนื่อยหรือเลิกดึก: ใช้เวอร์ชันเบา (วิดพื้น + กระโดดเชือก 10–15 นาที) ห้ามให้การออกกำลังกายกินเวลานอน</p>';
+  }
+
+  function viewWeek(){
+    var order = [1,2,3,4,5,6,0];
+    return '<div class="scroll"><table><thead><tr><th>วัน</th><th>เช้า</th><th>เย็น</th><th>ท่าแก้ท่าทางเสริม</th></tr></thead><tbody>' +
+      order.map(function(d){
+        return '<tr' + (d === wd ? ' class="today"' : '') + '><td>' + DAYS[d] + '</td><td>' + esc(WORKOUT[d][0]) + '</td><td>' + esc(WORKOUT[d][1]) + '</td><td>' + esc(WORKOUT[d][2]) + '</td></tr>';
+      }).join('') + '</tbody></table></div>' +
+      '<p class="note">ตารางตรงกับรายการในแท็บวันนี้ ตอนทำ plank ให้หายใจเรื่อยๆ ไม่กลั้นหายใจ ถ้าเจ็บไหล่หรือเข่าให้ลดหรือข้ามท่านั้น</p>' +
+      '<p class="note">2–3 สัปดาห์ก่อนสอบเดือนมีนาคม ใช้โหมดรักษา: โยคะเช้า + ออกกำลังกายเบา 3–4 วัน เพื่อไม่ให้กินเวลาอ่านหนังสือและเวลานอน</p>';
+  }
+
+  function viewTrack(){
+    var hs = read('heights', []);
+    hs.sort(function(a,b){ return a.d < b.d ? 1 : -1; });
+    var first = hs.length ? hs[hs.length-1].h : null;
+    var list = hs.length ? hs.map(function(e, i){
+      var diff = (e.h - first);
+      var dt = (i === hs.length - 1) ? '' : '<div class="delta">' + (diff > 0 ? '+' : '') + diff.toFixed(1) + ' ซม. จากครั้งแรก</div>';
+      return '<div class="row"><div><div class="h">' + e.h.toFixed(1) + ' ซม.</div><div class="d">' + esc(e.d) + '</div></div>' + dt +
+        '<button class="x" data-del="' + esc(e.d) + '" aria-label="ลบบันทึกวันที่ ' + esc(e.d) + '">ลบ</button></div>';
+    }).join('') : '<div class="empty">ยังไม่มีบันทึก วัดตอนเช้าหลังตื่น ยืนชิดผนัง แล้วใส่ตัวเลขด้านบน</div>';
+    return '<div class="form"><input id="hd" type="date" value="' + today + '" aria-label="วันที่"><input id="hv" type="number" inputmode="decimal" step="0.1" min="100" max="230" placeholder="ความสูง (ซม.)" aria-label="ความสูง ซม."><button class="btn" id="save">บันทึกความสูง</button></div>' +
+      '<div class="list">' + list + '</div>' +
+      '<p class="note">วัดเดือนละครั้ง ท่าเดิม เวลาเดิม ถ้าครบ 3 เดือนแล้วตัวเลขไม่ขยับ ไปเอ็กซเรย์ bone age เพื่อดูว่ากระดูกปิดแล้วหรือยัง</p>';
+  }
+
+  function render(){
+    var v = document.getElementById('view');
+    v.innerHTML = tab === 'today' ? viewToday() : tab === 'week' ? viewWeek() : viewTrack();
+    document.querySelectorAll('.tabs button').forEach(function(b){ b.setAttribute('aria-selected', b.dataset.tab === tab ? 'true' : 'false'); });
+    progress();
+  }
+
+  document.getElementById('date').textContent = 'วัน' + DAYS[wd] + 'ที่ ' + now.getDate() + '/' + (now.getMonth()+1) + '/' + now.getFullYear();
+
+  document.addEventListener('change', function(e){
+    var id = e.target.dataset && e.target.dataset.id;
+    if (!id) return;
+    done[id] = e.target.checked;
+    write('done:' + today, done);
+    progress();
+  });
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if (t.dataset.tab){ tab = t.dataset.tab; render(); return; }
+    if (t.id === 'save'){
+      var h = parseFloat(document.getElementById('hv').value);
+      var d = document.getElementById('hd').value || today;
+      if (!(h >= 100 && h <= 230)) { document.getElementById('hv').focus(); return; }
+      var hs = read('heights', []).filter(function(x){ return x.d !== d; });
+      hs.push({d: d, h: h});
+      write('heights', hs);
+      render(); return;
+    }
+    if (t.dataset.del){
+      write('heights', read('heights', []).filter(function(x){ return x.d !== t.dataset.del; }));
+      render();
+    }
+  });
+  render();
+})();
+</script>
+</body>
+</html>
